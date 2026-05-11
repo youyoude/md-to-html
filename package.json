@@ -1,0 +1,11 @@
+{
+  "name": "huasheng-md",
+  "version": "1.0.0",
+  "description": "Markdown to WeChat Official Account HTML converter with 13 styles",
+  "type": "module",
+  "dependencies": {
+    "markdown-it": "^14.1.0",
+    "highlight.js": "^11.10.0",
+    "jsdom": "^25.0.0"
+  }
+}
