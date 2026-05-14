@@ -363,6 +363,96 @@ function applyInlineStyles(html, styleKey) {
 }
 
 // ---------------------------------------------------------------------------
+// Flatten loose lists: unwrap single <p> from <li> to avoid double margins
+// ---------------------------------------------------------------------------
+
+function flattenLooseLists(html) {
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+  const lis = doc.querySelectorAll('li');
+
+  lis.forEach((li) => {
+    // Find all <p> children inside <li> and unwrap them
+    const ps = li.querySelectorAll(':scope > p');
+    ps.forEach((p) => {
+      // Move all children of <p> into <li>, preserving inline styles
+      const pStyle = p.getAttribute('style') || '';
+      while (p.firstChild) {
+        const child = p.firstChild;
+        if (pStyle && child.nodeType === 1) {
+          const existingStyle = child.getAttribute('style') || '';
+          child.setAttribute('style', existingStyle ? existingStyle + '; ' + pStyle : pStyle);
+        }
+        li.insertBefore(child, p);
+      }
+      li.removeChild(p);
+    });
+
+    // Clean up whitespace-only text nodes left behind
+    Array.from(li.childNodes).forEach((n) => {
+      if (n.nodeType === 3 && n.textContent.trim() === '') {
+        li.removeChild(n);
+      }
+    });
+  });
+
+  return doc.body.innerHTML;
+}
+
+// ---------------------------------------------------------------------------
+// Convert <ol> to numbered <p> to bypass WeChat list rendering bugs
+// ---------------------------------------------------------------------------
+
+function convertOlToNumberedP(html) {
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+
+  // Convert <ol> → numbered <p>
+  doc.querySelectorAll('ol').forEach((ol) => {
+    const lis = ol.querySelectorAll(':scope > li');
+    const frag = doc.createDocumentFragment();
+
+    lis.forEach((li, idx) => {
+      const p = doc.createElement('p');
+      p.setAttribute('style', 'margin: 4px 0 !important; padding-left: 6px; line-height: 1.8 !important; color: #1a1a1a !important;');
+
+      const numSpan = doc.createElement('strong');
+      numSpan.setAttribute('style', 'font-weight: 700; color: #d32f2f !important;');
+      numSpan.textContent = `${idx + 1}. `;
+      p.appendChild(numSpan);
+
+      while (li.firstChild) p.appendChild(li.firstChild);
+      frag.appendChild(p);
+    });
+
+    ol.parentNode.replaceChild(frag, ol);
+  });
+
+  // Convert <ul> → bullet-point <p>
+  doc.querySelectorAll('ul').forEach((ul) => {
+    const lis = ul.querySelectorAll(':scope > li');
+    const frag = doc.createDocumentFragment();
+
+    lis.forEach((li) => {
+      const p = doc.createElement('p');
+      p.setAttribute('style', 'margin: 4px 0 !important; padding-left: 14px; line-height: 1.8 !important; color: #1a1a1a !important;');
+
+      const bullet = doc.createElement('strong');
+      bullet.setAttribute('style', 'font-weight: 700; color: #d32f2f !important;');
+      bullet.textContent = '• ';
+      p.appendChild(bullet);
+
+      while (li.firstChild) p.appendChild(li.firstChild);
+      frag.appendChild(p);
+    });
+
+    ul.parentNode.replaceChild(frag, ul);
+  });
+
+  return doc.body.innerHTML;
+}
+
+// ---------------------------------------------------------------------------
 // Main conversion
 // ---------------------------------------------------------------------------
 
@@ -370,8 +460,10 @@ function convert(markdown, styleKey) {
   const md = createMarkdownParser();
   const processed = preprocessMarkdown(markdown);
   const rawHtml = md.render(processed);
-  const styledHtml = applyInlineStyles(rawHtml, styleKey);
-  return styledHtml;
+  const flattenedHtml = flattenLooseLists(rawHtml);
+  const styledHtml = applyInlineStyles(flattenedHtml, styleKey);
+  const finalHtml = convertOlToNumberedP(styledHtml);
+  return finalHtml;
 }
 
 // ---------------------------------------------------------------------------
@@ -466,11 +558,14 @@ async function main() {
   }
 
   let markdown = '';
-  if (opts.content) {
+  if (opts.content && opts.content !== '-') {
     markdown = opts.content;
   } else if (opts.input) {
     markdown = readFileSync(opts.input, 'utf-8');
-  } else {
+  }
+
+  // Read from stdin when --content - or no file/content provided (piped input)
+  if (!markdown) {
     const chunks = [];
     for await (const chunk of process.stdin) {
       chunks.push(chunk);
