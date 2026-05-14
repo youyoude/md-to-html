@@ -222,9 +222,10 @@ function applyInlineStyles(html, styleKey) {
     });
   });
 
-  // WeChat-safe code blocks: replace <pre><code> with <section>+<br>-based blocks
-  // WeChat strips background/border-radius/overflow from <pre>, so we use
-  // <section> with background-color and explicit <br> line breaks instead.
+  // WeChat-safe code blocks: WeChat strips background-color from <pre>,
+  // <section>, and <div>. But it preserves background-color on <td>
+  // inside <table>, because WeChat's editor supports tables natively.
+  // So we wrap each code block in a single-cell table.
   const preBlocks = doc.body.querySelectorAll('pre');
   preBlocks.forEach((pre) => {
     const code = pre.querySelector('code');
@@ -232,7 +233,7 @@ function applyInlineStyles(html, styleKey) {
 
     const html = code.innerHTML;
     const lines = html.split('\n');
-    const content = lines
+    const innerHTML = lines
       .map((line, i) => {
         const trimmed = line.trimEnd();
         if (i === lines.length - 1 && trimmed === '') return '';
@@ -240,28 +241,45 @@ function applyInlineStyles(html, styleKey) {
       })
       .join('');
 
-    const section = doc.createElement('section');
-    section.setAttribute(
-      'style',
-      `margin: 20px 0; padding: 16px; background-color: #282c34; ` +
-      `border: 1px solid #3e4451; font-family: Menlo, Monaco, Consolas, monospace; ` +
-      `font-size: 14px; line-height: 1.6; color: #abb2bf; ` +
-      `word-break: break-all; word-wrap: break-word; text-align: left;`
-    );
-    section.innerHTML = content;
+    // Build a single-cell table that survives WeChat's CSS stripping
+    const table = doc.createElement('table');
+    table.setAttribute('style', [
+      'width: 100%',
+      'margin: 20px 0',
+      'border-collapse: collapse',
+      'table-layout: fixed'
+    ].join('; '));
 
-    // Copy syntax highlight spans inline styles into the new <span> elements
+    const tbody = doc.createElement('tbody');
+    const tr = doc.createElement('tr');
+    const td = doc.createElement('td');
+    td.setAttribute('style', [
+      'padding: 16px',
+      'background-color: #282c34',
+      'border: 1px solid #3e4451',
+      'font-family: monospace',
+      'font-size: 14px',
+      'line-height: 1.6',
+      'color: #abb2bf',
+      'text-align: left'
+    ].join('; '));
+    td.innerHTML = innerHTML;
+    tr.appendChild(td);
+    tbody.appendChild(tr);
+    table.appendChild(tbody);
+
+    // Copy syntax highlight spans inline styles
     const hlSpans = code.querySelectorAll('span[style]');
     hlSpans.forEach((hlSpan) => {
-      const innerSpans = section.querySelectorAll('span');
+      const innerSpans = td.querySelectorAll('span:not([style])');
       innerSpans.forEach((s) => {
-        if (s.textContent.trim() === hlSpan.textContent.trim() && !s.getAttribute('style')) {
+        if (s.textContent.trim() === hlSpan.textContent.trim()) {
           s.setAttribute('style', hlSpan.getAttribute('style'));
         }
       });
     });
 
-    pre.parentNode.replaceChild(section, pre);
+    pre.parentNode.replaceChild(table, pre);
   });
 
   // Wrap in container
