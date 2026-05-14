@@ -260,17 +260,30 @@ function applyInlineStyles(html, styleKey) {
       || /[┬┴├┤┼]/.test(innerHTML);
 
     if (hasBoxDrawing) {
+      // Wrap in a scrollable container for mobile
+      const wrapper = doc.createElement('div');
+      wrapper.setAttribute('style', [
+        'overflow-x: auto',
+        '-webkit-overflow-scrolling: touch',
+        'margin: 20px 0'
+      ].join('; '));
+      table.setAttribute('style', [
+        'border-collapse: collapse'
+      ].join('; '));
       td.setAttribute('style', [
-        'padding: 12px 8px',
+        'padding: 12px 10px',
         'background-color: #282c34',
         'border: 1px solid #3e4451',
         'font-family: monospace',
-        'font-size: 10px',
+        'font-size: 11px',
         'line-height: 1.3',
         'color: #abb2bf',
         'text-align: left',
-        'white-space: nowrap'
+        'white-space: pre'
       ].join('; '));
+      wrapper.appendChild(table);
+      pre.parentNode.replaceChild(wrapper, pre);
+      return; // Don't fall through to the normal table insert below
     } else {
       td.setAttribute('style', [
         'padding: 16px',
