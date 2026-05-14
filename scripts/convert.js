@@ -260,15 +260,15 @@ function applyInlineStyles(html, styleKey) {
       || /[┬┴├┤┼]/.test(innerHTML);
 
     if (hasBoxDrawing) {
-      // Wrap in a scrollable container for mobile
-      const wrapper = doc.createElement('div');
-      wrapper.setAttribute('style', [
+      // Scrollable ASCII diagram: overflow-x on the table itself
+      // (WeChat strips nested table content inside wrapper divs)
+      table.setAttribute('style', [
+        'width: 100%',
+        'margin: 20px 0',
+        'border-collapse: collapse',
         'overflow-x: auto',
         '-webkit-overflow-scrolling: touch',
-        'margin: 20px 0'
-      ].join('; '));
-      table.setAttribute('style', [
-        'border-collapse: collapse'
+        'display: block'
       ].join('; '));
       td.setAttribute('style', [
         'padding: 12px 10px',
@@ -281,9 +281,6 @@ function applyInlineStyles(html, styleKey) {
         'text-align: left',
         'white-space: pre'
       ].join('; '));
-      wrapper.appendChild(table);
-      pre.parentNode.replaceChild(wrapper, pre);
-      return; // Don't fall through to the normal table insert below
     } else {
       td.setAttribute('style', [
         'padding: 16px',
