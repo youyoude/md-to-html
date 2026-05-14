@@ -253,16 +253,37 @@ function applyInlineStyles(html, styleKey) {
     const tbody = doc.createElement('tbody');
     const tr = doc.createElement('tr');
     const td = doc.createElement('td');
-    td.setAttribute('style', [
-      'padding: 16px',
-      'background-color: #282c34',
-      'border: 1px solid #3e4451',
-      'font-family: monospace',
-      'font-size: 14px',
-      'line-height: 1.6',
-      'color: #abb2bf',
-      'text-align: left'
-    ].join('; '));
+
+    // Detect if code block contains box-drawing / ASCII art diagrams.
+    // These need extra-small font and no word-break to fit mobile screens.
+    const hasBoxDrawing = /[┌┐└┘├┤┬┴┼│─═╭╮╰╯╔╗╚╝╠╣╦╩╬║╒╕╘╛╞╡╤╧╪]/.test(innerHTML)
+      || /[┬┴├┤┼]/.test(innerHTML);
+
+    if (hasBoxDrawing) {
+      td.setAttribute('style', [
+        'padding: 12px 8px',
+        'background-color: #282c34',
+        'border: 1px solid #3e4451',
+        'font-family: monospace',
+        'font-size: 10px',
+        'line-height: 1.3',
+        'color: #abb2bf',
+        'text-align: left',
+        'white-space: nowrap'
+      ].join('; '));
+    } else {
+      td.setAttribute('style', [
+        'padding: 16px',
+        'background-color: #282c34',
+        'border: 1px solid #3e4451',
+        'font-family: monospace',
+        'font-size: 14px',
+        'line-height: 1.6',
+        'color: #abb2bf',
+        'text-align: left',
+        'word-break: break-all'
+      ].join('; '));
+    }
     td.innerHTML = innerHTML;
     tr.appendChild(td);
     tbody.appendChild(tr);
