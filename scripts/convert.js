@@ -188,7 +188,10 @@ function applyInlineStyles(html, styleKey) {
     const elements = doc.querySelectorAll(selector);
     elements.forEach((el) => {
       const currentStyle = el.getAttribute('style') || '';
-      el.setAttribute('style', currentStyle + '; ' + style[selector]);
+      const newStyle = currentStyle
+        ? (currentStyle + '; ' + style[selector])
+        : style[selector];
+      el.setAttribute('style', newStyle);
     });
   });
 
@@ -211,8 +214,53 @@ function applyInlineStyles(html, styleKey) {
         .replace(/padding:\s*[^;]+;?/gi, '')
         .replace(/;\s*;/g, ';')
         .trim();
-      node.setAttribute('style', sanitized + '; ' + override);
+      const newStyle = sanitized
+        ? (sanitized + '; ' + override)
+        : override;
+      node.setAttribute('style', newStyle);
     });
+  });
+
+  // WeChat-safe code blocks: replace <pre><code> with <section>+<br>-based blocks
+  // WeChat strips background/border-radius/overflow from <pre>, so we use
+  // <section> with background-color and explicit <br> line breaks instead.
+  const preBlocks = doc.body.querySelectorAll('pre');
+  preBlocks.forEach((pre) => {
+    const code = pre.querySelector('code');
+    if (!code) return;
+
+    const html = code.innerHTML;
+    const lines = html.split('\n');
+    const content = lines
+      .map((line, i) => {
+        const trimmed = line.trimEnd();
+        if (i === lines.length - 1 && trimmed === '') return '';
+        return trimmed === '' ? '<br>' : `<span>${trimmed}</span><br>`;
+      })
+      .join('');
+
+    const section = doc.createElement('section');
+    section.setAttribute(
+      'style',
+      `margin: 20px 0; padding: 16px; background-color: #282c34; ` +
+      `border: 1px solid #3e4451; font-family: Menlo, Monaco, Consolas, monospace; ` +
+      `font-size: 14px; line-height: 1.6; color: #abb2bf; ` +
+      `word-break: break-all; word-wrap: break-word; text-align: left;`
+    );
+    section.innerHTML = content;
+
+    // Copy syntax highlight spans inline styles into the new <span> elements
+    const hlSpans = code.querySelectorAll('span[style]');
+    hlSpans.forEach((hlSpan) => {
+      const innerSpans = section.querySelectorAll('span');
+      innerSpans.forEach((s) => {
+        if (s.textContent.trim() === hlSpan.textContent.trim() && !s.getAttribute('style')) {
+          s.setAttribute('style', hlSpan.getAttribute('style'));
+        }
+      });
+    });
+
+    pre.parentNode.replaceChild(section, pre);
   });
 
   // Wrap in container
