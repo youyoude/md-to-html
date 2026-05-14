@@ -282,6 +282,48 @@ function applyInlineStyles(html, styleKey) {
     pre.parentNode.replaceChild(table, pre);
   });
 
+  // WeChat blockquote length limit: single <blockquote> must be <= 300 chars.
+  // Split long blockquotes at <p> boundaries into multiple shorter ones.
+  const MAX_BQ_CHARS = 250;
+  let bqs = doc.body.querySelectorAll('blockquote');
+  bqs.forEach((bq) => {
+    const text = (bq.textContent || '').replace(/\s+/g, '');
+    if (text.length <= MAX_BQ_CHARS) return;
+
+    // Collect child paragraphs and re-group them into shorter blockquotes
+    const children = Array.from(bq.childNodes);
+    const groups = [];
+    let currentGroup = [];
+    let currentLen = 0;
+
+    children.forEach((child) => {
+      // Skip text-only whitespace nodes
+      if (child.nodeType === 3 && !child.textContent.trim()) return;
+      const childText = (child.textContent || '').replace(/\s+/g, '');
+      if (childText.length === 0) return;
+      if (currentLen + childText.length > MAX_BQ_CHARS && currentGroup.length > 0) {
+        groups.push(currentGroup);
+        currentGroup = [];
+        currentLen = 0;
+      }
+      currentGroup.push(child.cloneNode(true));
+      currentLen += childText.length;
+    });
+    if (currentGroup.length > 0) groups.push(currentGroup);
+
+    if (groups.length <= 1) return; // No split needed
+
+    // Replace original blockquote with multiple blockquotes
+    const fragment = doc.createDocumentFragment();
+    groups.forEach((group) => {
+      const newBq = doc.createElement('blockquote');
+      newBq.setAttribute('style', bq.getAttribute('style') || '');
+      group.forEach((node) => newBq.appendChild(node));
+      fragment.appendChild(newBq);
+    });
+    bq.parentNode.replaceChild(fragment, bq);
+  });
+
   // Wrap in container
   const container = doc.createElement('div');
   container.setAttribute('style', style.container);
